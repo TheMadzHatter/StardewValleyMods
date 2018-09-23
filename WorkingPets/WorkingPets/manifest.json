@@ -1,0 +1,10 @@
+﻿{
+   "Name": "WorkingPets",
+   "Author": "TheMadHatter",
+   "Version": "1.0.0",
+   "Description": "Make your pets be active farm animals that are useful around the farm.",
+   "UniqueID": "TheMadHatter.WorkingPets",
+   "EntryDll": "WorkingPets.dll",
+   "MinimumApiVersion": "2.0",
+   "UpdateKeys": []
+}

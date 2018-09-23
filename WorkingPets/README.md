@@ -1,0 +1,1 @@
+This is currently a WIP mod for Stardew Valley. Documentation will be updated as progress is made. 
