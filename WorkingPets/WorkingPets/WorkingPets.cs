@@ -4,10 +4,11 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Characters;
 using SFarmer = StardewValley.Farmer;
-using System.Collections.Generic;
 using System.Linq;
+using System.Collections.Generic;
 using System.Globalization;
 using StardewValley.Locations;
+using Netcode;
 
 namespace WorkingPets
 {
@@ -21,30 +22,30 @@ namespace WorkingPets
 			this.ID = id;
 			this.Name = name;
 			this.stack = count;
+
 		}
 		public void AddToStack(int count)
 		{
 			this.stack += count;
 		}
+		public void SetStack(int count)
+		{
+			this.stack = count;
+		}
 	}
 	public class WorkingPets : Mod
 	{
 		private Pet workingPet;
-		private static SFarmer thisFarmer;
 		public Pet WorkingPet { get => workingPet; set => workingPet = value; }
-		public int hayAmount;
-		public FarmAnimal animal = new FarmAnimal();
 		private ModConfig Config;
 		private bool petToday = false;
 		private bool petYesterday = false;
-		private bool notifiedFarmer = false;
+		private int petStreak;
+		private int maxStack = 999;
 
-		private bool huntVermin;
 		private bool digArtifacts;
 		private Dictionary<int, PetInvetoryItem> petInventory = new Dictionary<int, PetInvetoryItem>();
-
-		GameLocation[] petLocations = new GameLocation[2];
-
+		List<GameLocation> workableLocations;
 		ModData savedData; 
 
 		public override void Entry(IModHelper helper)
@@ -59,7 +60,6 @@ namespace WorkingPets
 		private void Configure()
 		{
 			this.Config = this.Helper.ReadConfig<ModConfig>();
-			this.huntVermin = this.Config.HuntVermin;
 			this.digArtifacts = this.Config.DigArtifacts;
 		}
 
@@ -67,14 +67,14 @@ namespace WorkingPets
 		{
 			savedData = this.Helper.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json") ?? new ModData();
 			this.petYesterday = savedData.PetYesterday;
+			this.petStreak = savedData.petStreak;
 			this.petInventory = savedData.PetInventory ?? new Dictionary<int, PetInvetoryItem>();
-			petLocations[0] = Game1.getLocationFromName("FarmHouse");
-			petLocations[1] = Game1.getLocationFromName("Farm");
+			workableLocations = GetWorkableLocations();
 			if (workingPet == null)
 			{
 				List<NPC> farmCharacters = new List<NPC>();
-				farmCharacters.AddRange(petLocations[0].getCharacters());
-				farmCharacters.AddRange(petLocations[1].getCharacters());
+				farmCharacters.AddRange(Game1.getLocationFromName("FarmHouse").getCharacters());
+				farmCharacters.AddRange(Game1.getLocationFromName("Farm").getCharacters());
 				foreach (NPC character in farmCharacters)
 				{
 					if (character is Dog)
@@ -87,6 +87,8 @@ namespace WorkingPets
 
 		private void SaveEvents_BeforeSave(object sender, EventArgs e)
 		{
+			bool wasPet = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
+
 			this.petYesterday = this.petToday;
 			SaveData();
 		}
@@ -97,92 +99,86 @@ namespace WorkingPets
 			{
 				PetWork(petYesterday);
 				petToday = false;
-				notifiedFarmer = false;
+				if (!petYesterday)
+					petStreak = 0;
 			}
 		}
 
 		private void InputEvents_ButtonReleased(object sender, EventArgsInput e)
 		{
-			//this.Monitor.Log($"{Game1.player.name} pressed {e.Button}.");
 			if (Context.IsWorldReady && WorkingPet != null) // save is loaded
 			{
 				if(workingPet.getTileLocation() == e.Cursor.GrabTile)
 				{
 					this.Monitor.Log($"{WorkingPet.name} was pet. ");
+					if (!petToday)
+						petStreak++;
 					petToday = true;
 					if(petInventory.Count > 0)
 					{
 						this.Monitor.Log($"{WorkingPet.name}'s inventory is not empty.");
+						foreach(KeyValuePair<int, PetInvetoryItem> kvp in petInventory.Where(pi => pi.Value.stack >0))
+						{
+							StardewValley.Object obj = new StardewValley.Object(kvp.Key, kvp.Value.stack);
+							var item = Game1.player.addItemToInventory(obj);
+							if(item == null) // full pet inventory added to farmer inventory
+							{
+								kvp.Value.SetStack(0);
+							}
+							else // only some of pet inventory added to the famer inventory
+							{
+								kvp.Value.SetStack(item.Stack);
+							}
+						}
 					}
-				}
-				bool wasPet = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
-				if (wasPet && !petToday)
-				{
-					//this.Monitor.Log($"{WorkingPet.name} was pet. ");
-					petToday = true;
-				}
-				//if(wasPet && petYesterday && !notifiedFarmer)
-				//{
-				//	this.Monitor.Log($"Magic number of vermin were scared off by {WorkingPet.name}.");
-				//	notifiedFarmer = true;
-				//}
-				//
-				//We h
-				if(wasPet && petInventory.Count > 0)
-				{
-
 				}
 			}
 		}
 
 		public void PetWork(bool worked)
 		{
-			//if (huntVermin)
-			//	HuntVermin(worked);
 			if (digArtifacts && worked)
 				DigArtifacts();
 		}
 
-		//public void HuntVermin(bool worked)
-		//{
-		//	Farm thisFarm = Game1.getFarm();
-		//	int currentHayCount = thisFarm.piecesOfHay;
-		//	double hayPercent = Utility.numSilos() * (0.1);
-		//	if (hayPercent > 1)
-		//		hayPercent = 1;
-		//	int verminCount = (int)Math.Ceiling(currentHayCount * hayPercent * Math.Abs(Game1.dailyLuck));
-		//	this.Monitor.Log($"Vermin Count: {verminCount}.");
-
-		//	if (worked)
-		//	{
-		//		Game1.drawObjectDialogue($"{verminCount} vermin were scared away from your silos by {workingPet.name}.");
-		//	}
-		//	else
-		//	{
-		//		thisFarm.piecesOfHay = thisFarm.piecesOfHay - Math.Abs(verminCount);
-		//		Game1.drawObjectDialogue($"{verminCount} pieces of hay were eaten by vermin. {workingPet.name} isn't feeling loved enough to work.");
-		//	}
-		//}
-
 		public void DigArtifacts()
 		{
-			int numberOfArtifacts = 2;
-
-			List<GameLocation> locations = Game1.locations.Where(lc => lc.isOutdoors == true).ToList();
 			Random random = new Random(2000 + (int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed);
-
-			GameLocation farm = Game1.getLocationFromName("Farm");
-			int x = 50;
-			int y = 45;
-			for (int i = 0; i < numberOfArtifacts; i++)
+			int index = Game1.random.Next() % workableLocations.Count;
+			int num = petStreak > 10 ? 10 : petStreak;
+			for (int i = 0; i < num; i++)
 			{
-				DigDirt(x, y, Game1.player, farm);
+				DigDirt(Game1.player, workableLocations[index]);
 			}
 		}
 
-		public void DigDirt(int xLocation, int yLocation, SFarmer who, GameLocation here)
+		public List<GameLocation> GetWorkableLocations()
 		{
-			Random random = new Random(xLocation * 2000 + yLocation + (int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed);
+			List<GameLocation> petLocations = new List<GameLocation>();
+			petLocations.Add(Game1.getLocationFromName("Farm"));
+			petLocations.Add(Game1.getLocationFromName("Town"));
+			petLocations.Add(Game1.getLocationFromName("Beach"));
+			petLocations.Add(Game1.getLocationFromName("Mountain"));
+			petLocations.Add(Game1.getLocationFromName("Forest"));
+			petLocations.Add(Game1.getLocationFromName("BusStop"));
+			petLocations.Add(Game1.getLocationFromName("Woods"));
+			petLocations.Add(Game1.getLocationFromName("Backwoods"));
+			if (Game1.MasterPlayer.mailReceived.Contains("ccBoilerRoom"))
+			{
+				petLocations.Add(Game1.getLocationFromName("Desert"));
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("landslideDone"))
+			{
+				petLocations.Add(Game1.getLocationFromName("Railroad"));
+			}
+			return petLocations;
+		}
+
+		public void DigDirt(SFarmer who, GameLocation here)
+		{
+			int x = Game1.random.Next(here.map.DisplayWidth / 64);
+			int y = Game1.random.Next(here.map.DisplayHeight / 64);
+			Random random = new Random(x * 2000 + y + (int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed);
 			int objectIndex = -1;
 			foreach (KeyValuePair<int, string> keyValuePair in Game1.objectInformation)
 			{
@@ -193,7 +189,7 @@ namespace WorkingPets
 					int index = 0;
 					while (index < strArray2.Length)
 					{
-						if (strArray2[index].Equals(here.name) && random.NextDouble() < Convert.ToDouble(strArray2[index + 1], (IFormatProvider)CultureInfo.InvariantCulture))
+						if (strArray2[index].Equals((string)((NetFieldBase<string, NetString>)here.name)) && random.NextDouble() < Convert.ToDouble(strArray2[index + 1], (IFormatProvider)CultureInfo.InvariantCulture))
 						{
 							objectIndex = keyValuePair.Key;
 							break;
@@ -211,7 +207,6 @@ namespace WorkingPets
 			if (objectIndex != -1)
 			{
 				AddToPetInventory(new StardewValley.Object(objectIndex, 1), 1);
-				//who.gainExperience(5, 25);
 			}
 			else if (Game1.currentSeason.Equals("winter") && random.NextDouble() < 0.5 && !(here is Desert))
 			{
@@ -227,9 +222,9 @@ namespace WorkingPets
 			else
 			{
 				Dictionary<string, string> dictionary = Game1.content.Load<Dictionary<string, string>>("Data\\Locations");
-				if (!dictionary.ContainsKey(here.name))
+				if (!dictionary.ContainsKey((string)((NetFieldBase<string, NetString>)here.name)))
 					return;
-				string[] strArray = dictionary[here.name].Split('/')[8].Split(' ');
+				string[] strArray = dictionary[(string)((NetFieldBase<string, NetString>)here.name)].Split('/')[8].Split(' ');
 				if (strArray.Length == 0 || strArray[0].Equals("-1"))
 					return;
 				int index1 = 0;
@@ -248,7 +243,7 @@ namespace WorkingPets
 								break;
 							}
 						}
-						AddToPetInventory(new StardewValley.Object(412, 1), random.Next(1, 4));
+						AddToPetInventory(new StardewValley.Object(index2, 1), random.Next(1, 4));
 						break;
 					}
 					index1 += 2;
@@ -260,8 +255,8 @@ namespace WorkingPets
 		{
 			if(petInventory.ContainsKey(obj.parentSheetIndex))
 			{
-
-				petInventory[obj.parentSheetIndex].AddToStack(count);
+				if(petInventory[obj.parentSheetIndex].stack + count <= maxStack)
+					petInventory[obj.parentSheetIndex].AddToStack(count);
 			}
 			else
 			{
@@ -273,6 +268,7 @@ namespace WorkingPets
 		{
 			savedData.PetYesterday = this.petYesterday;
 			savedData.PetInventory = this.petInventory;
+			savedData.petStreak = this.petStreak;
 			this.Helper.WriteJsonFile($"data/{Constants.SaveFolderName}.json", savedData);
 		}
 
