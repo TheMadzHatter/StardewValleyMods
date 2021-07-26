@@ -51,7 +51,7 @@ namespace WorkingPets
 		public override void Entry(IModHelper helper)
 		{
 			this.Configure();
-			InputEvents.ButtonReleased += this.InputEvents_ButtonReleased;
+			//InputEvents.ButtonReleased += this.InputEvents_ButtonReleased;
 			TimeEvents.AfterDayStarted += new EventHandler(this.TimeEvents_AfterDayStarted);
 			SaveEvents.BeforeSave += new EventHandler(this.SaveEvents_BeforeSave);
 			SaveEvents.AfterLoad += new EventHandler(this.SaveEvents_AfterLoad);
@@ -87,9 +87,8 @@ namespace WorkingPets
 
 		private void SaveEvents_BeforeSave(object sender, EventArgs e)
 		{
-			bool wasPet = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
-
-			this.petYesterday = this.petToday;
+			// This needs to happen right after player goes to sleep at night. 
+			this.petYesterday = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
 			SaveData();
 		}
 
@@ -97,6 +96,7 @@ namespace WorkingPets
 		{
 			if (Context.IsWorldReady)
 			{
+				GetPetInventory();
 				PetWork(petYesterday);
 				petToday = false;
 				if (!petYesterday)
@@ -104,36 +104,38 @@ namespace WorkingPets
 			}
 		}
 
-		private void InputEvents_ButtonReleased(object sender, EventArgsInput e)
+		public void GetPetInventory()
 		{
-			if (Context.IsWorldReady && WorkingPet != null) // save is loaded
+			Game1.drawDialogue(workingPet, "I found these artifacts for you.");
+			foreach (KeyValuePair<int, PetInvetoryItem> kvp in petInventory.Where(pi => pi.Value.stack > 0))
 			{
-				if(workingPet.getTileLocation() == e.Cursor.GrabTile)
+				StardewValley.Object obj = new StardewValley.Object(kvp.Key, kvp.Value.stack);
+				var item = Game1.player.addItemToInventory(obj);
+				if (item == null) // full pet inventory added to farmer inventory
 				{
-					this.Monitor.Log($"{WorkingPet.name} was pet. ");
-					if (!petToday)
-						petStreak++;
-					petToday = true;
-					if(petInventory.Count > 0)
-					{
-						this.Monitor.Log($"{WorkingPet.name}'s inventory is not empty.");
-						foreach(KeyValuePair<int, PetInvetoryItem> kvp in petInventory.Where(pi => pi.Value.stack >0))
-						{
-							StardewValley.Object obj = new StardewValley.Object(kvp.Key, kvp.Value.stack);
-							var item = Game1.player.addItemToInventory(obj);
-							if(item == null) // full pet inventory added to farmer inventory
-							{
-								kvp.Value.SetStack(0);
-							}
-							else // only some of pet inventory added to the famer inventory
-							{
-								kvp.Value.SetStack(item.Stack);
-							}
-						}
-					}
+					kvp.Value.SetStack(0);
+				}
+				else // only some of pet inventory added to the famer inventory
+				{
+					kvp.Value.SetStack(item.Stack);
 				}
 			}
 		}
+
+		//private void InputEvents_ButtonReleased(object sender, EventArgsInput e)
+		//{
+		//	if (Context.IsWorldReady && WorkingPet != null) // save is loaded
+		//	{
+		//		if(workingPet.getTileLocation() == e.Cursor.GrabTile)
+		//		{
+		//			this.Monitor.Log($"{WorkingPet.name} was pet. ");
+		//			if (!petToday)
+		//				petStreak++;
+		//			petToday = true;
+					
+		//		}
+		//	}
+		//}
 
 		public void PetWork(bool worked)
 		{

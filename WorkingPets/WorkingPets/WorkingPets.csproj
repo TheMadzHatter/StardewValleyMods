@@ -61,6 +61,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="InProgress.cs" />
     <Compile Include="ModConfig.cs" />
     <Compile Include="ModData.cs" />
     <None Include="manifest.json" />
