@@ -52,9 +52,9 @@ namespace WorkingPets
 		{
 			this.Configure();
 			//InputEvents.ButtonReleased += this.InputEvents_ButtonReleased;
-			TimeEvents.AfterDayStarted += new EventHandler(this.TimeEvents_AfterDayStarted);
-			SaveEvents.BeforeSave += new EventHandler(this.SaveEvents_BeforeSave);
-			SaveEvents.AfterLoad += new EventHandler(this.SaveEvents_AfterLoad);
+			helper.Events.GameLoop.DayStarted += this.DayStarted;
+			helper.Events.GameLoop.Saving += this.BeforeSave;
+			helper.Events.GameLoop.SaveLoaded += this.AfterSaveLoaded;
 		}
 
 		private void Configure()
@@ -63,9 +63,9 @@ namespace WorkingPets
 			this.digArtifacts = this.Config.DigArtifacts;
 		}
 
-		private void SaveEvents_AfterLoad(object sender, EventArgs e)
+		private void AfterSaveLoaded(object sender, SaveLoadedEventArgs e)
 		{
-			savedData = this.Helper.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json") ?? new ModData();
+			savedData = this.Helper.Data.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json") ?? new ModData();
 			this.petYesterday = savedData.PetYesterday;
 			this.petStreak = savedData.petStreak;
 			this.petInventory = savedData.PetInventory ?? new Dictionary<int, PetInvetoryItem>();
@@ -85,14 +85,14 @@ namespace WorkingPets
 			}
 		}
 
-		private void SaveEvents_BeforeSave(object sender, EventArgs e)
+		private void BeforeSave(object sender, SavingEventArgs e)
 		{
 			// This needs to happen right after player goes to sleep at night. 
 			this.petYesterday = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
 			SaveData();
 		}
 
-		private void TimeEvents_AfterDayStarted(object sender, EventArgs e)
+		private void DayStarted(object sender, DayStartedEventArgs e)
 		{
 			if (Context.IsWorldReady)
 			{
@@ -271,7 +271,7 @@ namespace WorkingPets
 			savedData.PetYesterday = this.petYesterday;
 			savedData.PetInventory = this.petInventory;
 			savedData.petStreak = this.petStreak;
-			this.Helper.WriteJsonFile($"data/{Constants.SaveFolderName}.json", savedData);
+			this.Helper.Data.WriteJsonFile($"data/{Constants.SaveFolderName}.json", savedData);
 		}
 
 		
