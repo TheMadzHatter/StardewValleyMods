@@ -12,27 +12,6 @@ using Netcode;
 
 namespace WorkingPets
 {
-	public class PetInvetoryItem
-	{
-		public int ID;
-		public string Name;
-		public int stack;
-		public PetInvetoryItem(int id, string name, int count)
-		{
-			this.ID = id;
-			this.Name = name;
-			this.stack = count;
-
-		}
-		public void AddToStack(int count)
-		{
-			this.stack += count;
-		}
-		public void SetStack(int count)
-		{
-			this.stack = count;
-		}
-	}
 	public class WorkingPets : Mod
 	{
 		private Pet workingPet;
@@ -44,7 +23,7 @@ namespace WorkingPets
 		private const int MAXSTACK = 999;
 
 		private bool digArtifacts;
-		private Dictionary<int, PetInvetoryItem> petInventory = new Dictionary<int, PetInvetoryItem>();
+		private Dictionary<int, PetInventoryItem> petInventory = new Dictionary<int, PetInventoryItem>();
 		List<GameLocation> workableLocations;
 		ModData savedData; 
 
@@ -75,7 +54,7 @@ namespace WorkingPets
 			}
 			this.petYesterday = savedData.PetYesterday;
 			this.petStreak = savedData.petStreak;
-			this.petInventory = savedData.PetInventory ?? new Dictionary<int, PetInvetoryItem>();
+			this.petInventory = savedData.PetInventory ?? new Dictionary<int, PetInventoryItem>();
 			workableLocations = GetWorkableLocations();
 			if (workingPet == null)
 			{
@@ -120,7 +99,7 @@ namespace WorkingPets
 		public void GetPetInventory()
 		{
 			Game1.drawDialogue(workingPet, "I found these artifacts for you.");
-			foreach (KeyValuePair<int, PetInvetoryItem> kvp in petInventory.Where(pi => pi.Value.stack > 0))
+			foreach (KeyValuePair<int, PetInventoryItem> kvp in petInventory.Where(pi => pi.Value.stack > 0))
 			{
 				StardewValley.Object obj = new StardewValley.Object(kvp.Key, kvp.Value.stack);
 				var item = Game1.player.addItemToInventory(obj);
@@ -312,7 +291,7 @@ namespace WorkingPets
 			}
 			else
 			{
-				petInventory.Add(obj.parentSheetIndex, new PetInvetoryItem(obj.parentSheetIndex, obj.name, count));
+				petInventory.Add(obj.parentSheetIndex, new PetInventoryItem(obj.parentSheetIndex, obj.name, count));
 			}
 		}
 
@@ -323,6 +302,11 @@ namespace WorkingPets
 			savedData.petStreak = this.petStreak;
 			this.Helper.Data.WriteJsonFile($"data/{Constants.SaveFolderName}.json", savedData);
 		}
+
+		public string testFunction(string first, string second)
+        {
+			return first + " " + second;
+        }
 
 		
 	}

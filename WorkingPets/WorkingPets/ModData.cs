@@ -6,6 +6,6 @@ namespace WorkingPets
 	{
 		public bool PetYesterday;
 		public int petStreak;
-		public Dictionary<int, PetInvetoryItem> PetInventory;
+		public Dictionary<int, PetInventoryItem> PetInventory;
 	}
 }
