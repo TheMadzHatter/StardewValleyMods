@@ -41,7 +41,7 @@ namespace WorkingPets
 		//private bool petToday = false;
 		private bool petYesterday = false;
 		private int petStreak;
-		private const int MAX_STREAK = 999;
+		private const int MAXSTACK = 999;
 
 		private bool digArtifacts;
 		private Dictionary<int, PetInvetoryItem> petInventory = new Dictionary<int, PetInvetoryItem>();
@@ -164,6 +164,7 @@ namespace WorkingPets
 			for (int i = 0; i < num; i++)
 			{
 				DigDirt(Game1.player, workableLocations[index]);
+				workableLocations[index].digUpArtifactSpot(0, 0, Game1.player);
 			}
 		}
 
@@ -186,44 +187,52 @@ namespace WorkingPets
 			{
 				petLocations.Add(Game1.getLocationFromName("Railroad"));
 			}
+
 			return petLocations;
 		}
 
+		/// <summary>
+		/// This function is based off GameLocation.digUpArtifactSpot(int xLocation, int yLocation, Farmer who)
+		/// </summary>
+		/// <param name="who"></param>
+		/// <param name="here"></param>
 		public void DigDirt(SFarmer who, GameLocation here)
 		{
-			int x = Game1.random.Next(here.map.DisplayWidth / 64);
-			int y = Game1.random.Next(here.map.DisplayHeight / 64);
-			Random random = new Random(x * 2000 + y + (int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed);
-			int objectIndex = -1;
-			foreach (KeyValuePair<int, string> keyValuePair in Game1.objectInformation)
+			int xLocation = Game1.random.Next(here.map.DisplayWidth / 64);
+			int yLocation = Game1.random.Next(here.map.DisplayHeight / 64);
+			Random random = new Random(xLocation * 2000 + yLocation + (int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed);
+			int toDigUp = -1;
+			string[] split = null;
+			foreach (KeyValuePair<int, string> v in Game1.objectInformation)
 			{
-				string[] strArray1 = keyValuePair.Value.Split('/');
-				if (strArray1[3].Contains("Arch"))
+				split = v.Value.Split('/');
+				if (split[3].Contains("Arch"))
 				{
-					string[] strArray2 = strArray1[6].Split(' ');
-					int index = 0;
-					while (index < strArray2.Length)
+					string[] archSplit = split[6].Split(' ');
+					for (int j = 0; j < archSplit.Length; j += 2)
 					{
-						if (strArray2[index].Equals((string)((NetFieldBase<string, NetString>)here.name)) && random.NextDouble() < Convert.ToDouble(strArray2[index + 1], (IFormatProvider)CultureInfo.InvariantCulture))
+						if (archSplit[j].Equals(here.name) && random.NextDouble() < 2 * Convert.ToDouble(archSplit[j + 1], CultureInfo.InvariantCulture))
 						{
-							objectIndex = keyValuePair.Key;
+							toDigUp = v.Key;
 							break;
 						}
-						index += 2;
+						j += 2;
 					}
 				}
-				if (objectIndex != -1)
+				if (toDigUp != -1)
 					break;
 			}
 			if (random.NextDouble() < 0.2 && !(here is Farm))
-				objectIndex = 102;
-			if (objectIndex == 102 && who.archaeologyFound.ContainsKey(102) && who.archaeologyFound[102][0] >= 21)
-				objectIndex = 770;
-			if (objectIndex != -1)
+				toDigUp = 102;
+			if (toDigUp == 102 && (int)Game1.netWorldState.Value.LostBooksFound >= 21)
+				toDigUp = 770;
+			if (toDigUp != -1)
 			{
-				AddToPetInventory(new StardewValley.Object(objectIndex, 1), 1);
+				AddToPetInventory(new StardewValley.Object(toDigUp, 1), 1);
+				who.gainExperience(5, 25);
+				return;
 			}
-			else if (Game1.currentSeason.Equals("winter") && random.NextDouble() < 0.5 && !(here is Desert))
+			if (Game1.GetSeasonForLocation(here).Equals("winter") && random.NextDouble() < 0.5 && !(here is Desert))
 			{
 				if (random.NextDouble() < 0.4)
 				{
@@ -233,44 +242,72 @@ namespace WorkingPets
 				{
 					AddToPetInventory(new StardewValley.Object(412, 1), 1);
 				}
+				return;
 			}
-			else
+			if (Game1.random.NextDouble() <= 0.25 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+				AddToPetInventory(new StardewValley.Object(890, 1), random.Next(2 - 6));
+			if (Game1.GetSeasonForLocation(here).Equals("spring") && random.NextDouble() < 0.0625 && !(this is Desert) && !(this is Beach))
 			{
-				Dictionary<string, string> dictionary = Game1.content.Load<Dictionary<string, string>>("Data\\Locations");
-				if (!dictionary.ContainsKey((string)((NetFieldBase<string, NetString>)here.name)))
-					return;
-				string[] strArray = dictionary[(string)((NetFieldBase<string, NetString>)here.name)].Split('/')[8].Split(' ');
-				if (strArray.Length == 0 || strArray[0].Equals("-1"))
-					return;
-				int index1 = 0;
-				while (index1 < strArray.Length)
+				AddToPetInventory(new StardewValley.Object(273, 1), random.Next(2, 6));
+				return;
+			}
+			if (Game1.random.NextDouble() <= 0.2 && (Game1.MasterPlayer.mailReceived.Contains("guntherBones") 
+				|| (Game1.player.team.specialOrders.Where((SpecialOrder x) 
+				=> (string)x.questKey == "Gunther") != null && Game1.player.team.specialOrders.Where((SpecialOrder x) => (string)x.questKey == "Gunther").Count() > 0)))
+			{
+				AddToPetInventory(new StardewValley.Object(881, 1), random.Next(2, 6));
+			}
+
+			Dictionary<string, string> locationData = Game1.content.Load<Dictionary<string, string>>("Data\\Locations");
+			if (!locationData.ContainsKey(here.name))
+				return;
+			string[] rawData = locationData[here.name].Split('/')[8].Split(' ');
+			if (rawData.Length == 0 || rawData[0].Equals("-1"))
+				return;
+			for (int i = 0; i < rawData.Length; i += 2)
+			{
+				if (random.NextDouble() <= Convert.ToDouble(rawData[i + 1]))
 				{
-					if (random.NextDouble() <= Convert.ToDouble(strArray[index1 + 1]))
+					if (!(random.NextDouble() <= Convert.ToDouble(rawData[i + 1])))
 					{
-						int index2 = Convert.ToInt32(strArray[index1]);
-						if (Game1.objectInformation.ContainsKey(index2))
+						continue;
+					}
+					toDigUp = Convert.ToInt32(rawData[i]);
+					if (Game1.objectInformation.ContainsKey(toDigUp) && (Game1.objectInformation[toDigUp].Split('/')[3].Contains("Arch") || toDigUp == 102))
+					{
+						if (toDigUp == 102 && (int)Game1.netWorldState.Value.LostBooksFound >= 21)
 						{
-							if (Game1.objectInformation[index2].Split('/')[3].Contains("Arch") || index2 == 102)
-							{
-								if (index2 == 102 && who.archaeologyFound.ContainsKey(102) && who.archaeologyFound[102][0] >= 21)
-									index2 = 770;
-								AddToPetInventory(new StardewValley.Object(index2, 1), 1);
-								break;
-							}
+							toDigUp = 770;
 						}
-						AddToPetInventory(new StardewValley.Object(index2, 1), random.Next(1, 4));
+						AddToPetInventory(new StardewValley.Object(toDigUp, 1), 1);
 						break;
 					}
-					index1 += 2;
+					if (toDigUp == 330 && here.HasUnlockedAreaSecretNotes(who) && Game1.random.NextDouble() < 0.11)
+					{
+						StardewValley.Object o = here.tryToCreateUnseenSecretNote(who);
+						if (o != null)
+						{
+							AddToPetInventory(o, 1);
+							break;
+						}
+					}
+					else if (toDigUp == 330 && Game1.stats.DaysPlayed > 28 && Game1.random.NextDouble() < 0.1)
+					{
+						AddToPetInventory(new StardewValley.Object(688 + Game1.random.Next(3), 1),1);
+					}
+					AddToPetInventory(new StardewValley.Object(toDigUp, 1), random.Next(1, 4));
+
+					break;
 				}
 			}
+			
 		}
 
 		private void AddToPetInventory(StardewValley.Object obj, int count = 1)
 		{
 			if(petInventory.ContainsKey(obj.parentSheetIndex))
 			{
-				if(petInventory[obj.parentSheetIndex].stack + count <= MAX_STREAK)
+				if(petInventory[obj.parentSheetIndex].stack + count <= MAXSTACK)
 					petInventory[obj.parentSheetIndex].AddToStack(count);
 			}
 			else
