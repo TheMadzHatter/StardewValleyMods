@@ -38,10 +38,10 @@ namespace WorkingPets
 		private Pet workingPet;
 		public Pet WorkingPet { get => workingPet; set => workingPet = value; }
 		private ModConfig Config;
-		private bool petToday = false;
+		//private bool petToday = false;
 		private bool petYesterday = false;
 		private int petStreak;
-		private int maxStack = 999;
+		private const int MAX_STREAK = 999;
 
 		private bool digArtifacts;
 		private Dictionary<int, PetInvetoryItem> petInventory = new Dictionary<int, PetInvetoryItem>();
@@ -65,7 +65,14 @@ namespace WorkingPets
 
 		private void AfterSaveLoaded(object sender, SaveLoadedEventArgs e)
 		{
-			savedData = this.Helper.Data.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json") ?? new ModData();
+            try
+            {
+				savedData = this.Helper.Data.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json");
+			}
+            catch (Exception ex)
+            {
+				savedData = new ModData();
+			}
 			this.petYesterday = savedData.PetYesterday;
 			this.petStreak = savedData.petStreak;
 			this.petInventory = savedData.PetInventory ?? new Dictionary<int, PetInvetoryItem>();
@@ -88,7 +95,13 @@ namespace WorkingPets
 		private void BeforeSave(object sender, SavingEventArgs e)
 		{
 			// This needs to happen right after player goes to sleep at night. 
-			this.petYesterday = this.Helper.Reflection.GetField<bool>(WorkingPet, "wasPetToday").GetValue();
+			int lastDayPet = workingPet.lastPetDay.Values.First();
+			bool petted = Game1.Date.TotalDays - lastDayPet == 1; // Current day minus last day pet should be exactly one
+			this.petYesterday = petted;
+            if (petted)
+            {
+				this.petStreak += 1;
+            }
 			SaveData();
 		}
 
@@ -98,7 +111,7 @@ namespace WorkingPets
 			{
 				GetPetInventory();
 				PetWork(petYesterday);
-				petToday = false;
+				//petToday = false;
 				if (!petYesterday)
 					petStreak = 0;
 			}
@@ -257,7 +270,7 @@ namespace WorkingPets
 		{
 			if(petInventory.ContainsKey(obj.parentSheetIndex))
 			{
-				if(petInventory[obj.parentSheetIndex].stack + count <= maxStack)
+				if(petInventory[obj.parentSheetIndex].stack + count <= MAX_STREAK)
 					petInventory[obj.parentSheetIndex].AddToStack(count);
 			}
 			else
